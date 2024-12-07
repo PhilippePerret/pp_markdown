@@ -35,7 +35,7 @@ defmodule PPMarkdown.Engine do
     |> Earmark.as_html!(earmark_options())
     |> handle_smart_tags(path, name)
     |> mmd_transformations(options)
-    # |> Lighter.highlight(options_lighter)
+    |> Makeup.highlight()
     |> load_external_code()
     |> final_transformations(options_final)
     |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
@@ -159,7 +159,7 @@ defmodule PPMarkdown.Engine do
   # ============ RÉCUPÉRÉ DE PhoenixMarkdown ================
   #
   defp earmark_options() do
-    case Application.get_env(:phoenix_markdown, :earmark) do
+    case Application.get_env(:pp_markdown, :earmark) do
     %Earmark.Options{} = opts ->
       opts
     %{} = opts ->
@@ -172,7 +172,7 @@ defmodule PPMarkdown.Engine do
   # --------------------------------------------------------
   defp handle_smart_tags(markdown, path, name) do
     restore =
-      case Application.get_env(:phoenix_markdown, :server_tags) do
+      case Application.get_env(:pp_markdown, :server_tags) do
         :all -> true
         {:only, opt} -> only?(opt, path, name)
         [{:only, opt}] -> only?(opt, path, name)
