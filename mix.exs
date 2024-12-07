@@ -37,7 +37,7 @@ defmodule PPMarkdown.Mixfile do
     [
       {:phoenix, ">= 1.1.0"},
       {:phoenix_html, ">= 2.3.0"},
-      {:earmark, "~> 1.2"},         # Markdown interpreter
+      {:earmark, "~> 1.4"},
       {:html_entities, "~> 0.4"},
       {:makeup, "1.2.1"},
       {:makeup_elixir, "0.14.0"},
