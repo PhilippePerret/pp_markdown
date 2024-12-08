@@ -57,7 +57,7 @@ defmodule PPMarkdown.Engine do
   code HTML
   """
   def debug_smart_compile(path) do
-    pseudo_ast = smart_compile(path, Path.basename(path))
+    pseudo_ast = compile(path, Path.basename(path))
     {iodata, _bindings} = Code.eval_quoted(pseudo_ast)
     {:safe, iodata} = iodata
     IO.iodata_to_binary(iodata)
@@ -88,10 +88,8 @@ defmodule PPMarkdown.Engine do
       lang  = Enum.fetch!(matches, 2)
       lang  = lang == "" && nil || lang 
       block = Enum.fetch!(matches, -1)
-      # IO.inspect(block, label: "---BLOCK")
       {blocks ++ [{block, lang, index}], String.replace(acc, full_block, "\n\n BLOCKCODE#{index} \n\n")}
     end)
-    # IO.inspect(blocks, label: "\n\n--- BLOCKS")
     %{marked_text: letexte, original_text: code, blocks: blocks}
   end
 
@@ -99,7 +97,6 @@ defmodule PPMarkdown.Engine do
     case file_map.blocks do
     [] -> file_map[:marked_text]
     _ -> 
-      IO.inspect(file_map[:blocks], label: "\n--- file_map[:blocks]")
       Enum.reduce(file_map[:blocks], file_map[:marked_text], fn {remp, index}, acc ->
         String.replace(acc, ~r/ BLOCKCODE#{index} /, remp)
       end)
@@ -131,14 +128,10 @@ defmodule PPMarkdown.Engine do
   defp traite_blocs_texte(map_file, options) do
     texte_corrected = 
       map_file.marked_text
-      |> IO.inspect(label: "\nTEXTE MARQUÉ au départ")
       |> first_transformations(options)
       |> Earmark.as_html!(options.earmark)
-      # |> IO.inspect(label: "Retour de Earmark.as_html!")
       |> handle_smart_tags(options)
-      |> IO.inspect(label: "RETOUR DE handle_smart_tags")
-      # |> mmd_transformations(options)
-      |> IO.inspect(label: "\nTEXTE MARQUÉ à la fin")
+      |> mmd_transformations(options)
     # On remet le texte dans la map du fichier
     Map.put(map_file, :marked_text, texte_corrected)
   end
