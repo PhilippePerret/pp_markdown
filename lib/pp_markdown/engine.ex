@@ -35,10 +35,11 @@ defmodule PPMarkdown.Engine do
     |> Earmark.as_html!(earmark_options())
     |> handle_smart_tags(path, name)
     |> mmd_transformations(options)
-    |> Makeup.highlight()
+    # |> Makeup.highlight()
     |> load_external_code()
     |> final_transformations(options_final)
     |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
+    |> IO.inspect(label: "\nRetour de Engine.compile")
   end
 
   defp first_transformations(code, options) do

@@ -30,7 +30,10 @@ defmodule PPMarkdown.Mixfile do
   end
 
   def application do
-    [applications: [:phoenix]]
+    [
+      # applications: [:phoenix],
+      extra_applications: [:earmark]
+    ]
   end
 
   defp deps do
