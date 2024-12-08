@@ -19,44 +19,139 @@ defmodule PPMarkdown.Engine do
   # TODO Le définir en configuration ?
   @load_external_file_options %{source: true}
 
-
-
-  def compile(path, name) do
-
-    # Plus tard, on pourra définir des options
+  # Ici, le traitement va être différent : on va, dans un premier temps, séparer
+  # le texte "normal" des blocs de code (qui doivent subir beaucoup moins de
+  # traitement). cela permettra aussi d'utiliser Makeup.hightlight qui ne fonctionne
+  # en fait que sur des blocs de code, pas sur toute la page
+  def compile(path, name \\ nil) do
+    name = name || Path.basename(path)
     options = Application.get_env(:pp_markdown, :options, %{})
-    earmark_options = %{ earmark_options() | compact_output: options[:compact_output] || false}
-    # |> IO.inspect(label: "\nEarmark options")
+    options_earmark = %Earmark.Options{
+      gfm: options[:gfm],
+      smartypants: options[:smartypants] || false,
+      breaks: true,
+      compact_output: true
+    }
+    options = Map.merge(options, %{
+      path: path, 
+      name: name,
+      server_tags: :all,
+      earmark: options_earmark,
+      smartypants: false
+    })
 
     path
     |> File.read!()
-    |> first_transformations(options)
-    |> Earmark.as_html!(earmark_options)
-    |> handle_smart_tags(path, name)
-    |> mmd_transformations(options)
-    # |> Makeup.highlight()
-    |> load_external_code()
+    |> load_external_codes()
+    |> load_external_textes()
+    |> dispatch_sections()
+    |> traite_blocs_code(options)
+    |> traite_blocs_texte(options)
+    |> rejoin_sections(options)
     |> final_transformations(options)
-    |> IO.inspect(label: "\nSortie de final_transformations")
     |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
-    |> IO.inspect(label: "\nRetour de Engine.compile")
+  end
+
+  @doc """
+  Juste pour le débuggage, retourne la chaine simple qui sera affichée, avec tout son
+  code HTML
+  """
+  def debug_smart_compile(path) do
+    pseudo_ast = smart_compile(path, Path.basename(path))
+    {iodata, _bindings} = Code.eval_quoted(pseudo_ast)
+    {:safe, iodata} = iodata
+    IO.iodata_to_binary(iodata)
+  end
+
+  # La fonction reçoit tout le code, sépare les textes "normaux" des blocs de
+  # code (qui doivent obligatoirement être marqués par "~~~" des deux côtés)
+  #
+  # @return :
+  #   %{
+  #     marked_text: "<le texte où les blocks de code ont été remplacé par
+  #                   des balises __BLOCKCODE0__ etc.>"
+  #     original_text: "<le texte original>"
+  #     blocks: [<liste des blocs de textes, avec amorces]
+  #   }
+  #     {:text, "le texte"},
+  #     {:blockcode, "le bloc de code avec ~~~<langage>...~~~"}
+  #     {:text, "le texte}
+  #     ...
+  #   ]
+  @reg_code_block ~r/(\n| *|\t*|^)\~\~\~([^\n]*)\n((?:.|\n)*)\1\~\~\~/Um
+  defp dispatch_sections(code) do
+    {blocks, letexte} =
+    Regex.scan(@reg_code_block, code)
+    |> Enum.with_index(0)
+    |> Enum.reduce({[], code}, fn {matches, index}, {blocks, acc} ->
+      full_block = Enum.fetch!(matches, 0)
+      lang  = Enum.fetch!(matches, 2)
+      lang  = lang == "" && nil || lang 
+      block = Enum.fetch!(matches, -1)
+      # IO.inspect(block, label: "---BLOCK")
+      {blocks ++ [{block, lang, index}], String.replace(acc, full_block, "\n\n BLOCKCODE#{index} \n\n")}
+    end)
+    # IO.inspect(blocks, label: "\n\n--- BLOCKS")
+    %{marked_text: letexte, original_text: code, blocks: blocks}
+  end
+
+  defp rejoin_sections(file_map, options) do
+    case file_map.blocks do
+    [] -> file_map[:marked_text]
+    _ -> 
+      IO.inspect(file_map[:blocks], label: "\n--- file_map[:blocks]")
+      Enum.reduce(file_map[:blocks], file_map[:marked_text], fn {remp, index}, acc ->
+        String.replace(acc, ~r/ BLOCKCODE#{index} /, remp)
+      end)
+    end
+  end
+
+  # Traitement des blocs de code (et notamment colorisation syntaxique)
+  #
+  defp traite_blocs_code(map_file, options) do
+    blocks_corrected =
+      map_file.blocks
+      # |> Enum.map(&traite_block_code(&1, options))
+      |> Enum.map(fn {code, langage, index} -> 
+        new_code = traite_block_code(code, langage, options)
+        {new_code, index}
+      end)
+    
+    Map.put(map_file, :blocks, blocks_corrected)
+  end
+  
+  defp traite_block_code(blockcode, langage, _options) do
+    lang_class = Enum.join(["makeup", langage], " ") |> String.trim()
+    blockcode
+    |> Makeup.highlight()
+    |> String.replace("pre class=\"highlight\"", "pre class=\"#{lang_class}\"")
+  end
+
+  # Fonction de traitement principal du texte
+  defp traite_blocs_texte(map_file, options) do
+    texte_corrected = 
+      map_file.marked_text
+      |> IO.inspect(label: "\nTEXTE MARQUÉ au départ")
+      |> first_transformations(options)
+      |> Earmark.as_html!(options.earmark)
+      # |> IO.inspect(label: "Retour de Earmark.as_html!")
+      |> handle_smart_tags(options)
+      |> IO.inspect(label: "RETOUR DE handle_smart_tags")
+      # |> mmd_transformations(options)
+      |> IO.inspect(label: "\nTEXTE MARQUÉ à la fin")
+    # On remet le texte dans la map du fichier
+    Map.put(map_file, :marked_text, texte_corrected)
   end
 
   defp first_transformations(code, options) do
-    code 
-    |> protege_elixir_tags_in_blockcode(options)
+    code
     |> protege_exilir_tags_in_code(options)
   end
 
   # Concernant ce traitement, voir aussi la note [N001] en haut de page
-  @reg_code_block ~r/(\n| *|\t*)\~\~\~((?:.|\n)*)\1\~\~\~/Um
   @reg_code ~r/(\`)(.*)\1/
   @reg_elixir_tag ~r/<%/
   @remp_elixir_tag "<%=\"<\"<>\"%\"%>"
-
-  defp protege_elixir_tags_in_blockcode(code, options) do
-    protege_elixir_tags_in(code, @reg_code_block, options)
-  end
 
   defp protege_exilir_tags_in_code(code, options) do
     protege_elixir_tags_in(code, @reg_code, options)
@@ -70,16 +165,19 @@ defmodule PPMarkdown.Engine do
     end)
   end
 
-
   @regex_load ~r/load\((.*)\)/U
   @regex_load_as_code ~r/load_as_code\((.*)\)/U
 
   # Permet de charger du code externe. On peut le placer tel quel avec la
   # mark-fonction `load(path/to/file)' ou le mettre dans un bloc de code
   # avec la mark-fonction `load_as_code(path/to/file.ext)'.
-  defp load_external_code(code) do 
+  defp load_external_codes(code) do 
     code
     |> reg_replace(@regex_load_as_code, &replace_as_code/2)
+  end
+
+  defp load_external_textes(code) do
+    code
     |> reg_replace(@regex_load, fn _, path -> File.read!(path) end)
   end
 
@@ -96,10 +194,12 @@ defmodule PPMarkdown.Engine do
       end
 
     source = if @load_external_file_options[:source], do: "<span class=\"text-sm italic\">(source : #{path})</span>\n\n", else: ""
+    
+    # Code retourné
     """
-    <pre><code class="makeup #{langage}">
+    ~~~#{langage}
     #{source}#{File.read!(path)}
-    </code></pre>
+    ~~~
     """
   end
 
@@ -140,8 +240,10 @@ defmodule PPMarkdown.Engine do
     Application.get_env(:pp_markdown, :table_vars)
   end
 
+  # Les toutes dernières transformations, juste avant de faire l'iodata qui va
+  # être envoyée au moteur de rendu
   defp final_transformations(html, options) do
-    html 
+    html
     |> code_html_restants(options)
     |> makeup_pour_highlighting(options)
   end
@@ -149,6 +251,8 @@ defmodule PPMarkdown.Engine do
   defp code_html_restants(html, _options) do
     html
     |> String.replace(~r/&lt;br( ?\/)?&gt;/, "<br />")
+    |> String.replace("<p><pre", "<pre")
+    |> String.replace("</pre></p>", "</pre>")
   end
 
   @regex_bad_highlight ~r/<code class="(?!makeup)/
@@ -162,22 +266,13 @@ defmodule PPMarkdown.Engine do
   
   # 
   # ============ RÉCUPÉRÉ DE PhoenixMarkdown ================
-  #
-  defp earmark_options() do
-    case Application.get_env(:pp_markdown, :earmark) do
-    %Earmark.Options{} = opts ->
-      opts
-    %{} = opts ->
-      Kernel.struct!(Earmark.Options, opts)
-    _ ->
-      %Earmark.Options{}
-    end
-  end
 
   # --------------------------------------------------------
-  defp handle_smart_tags(markdown, path, name) do
+  defp handle_smart_tags(markdown, options) do
+    path = options[:path]
+    name = options[:name]
     restore =
-      case Application.get_env(:pp_markdown, :server_tags) do
+      case options[:server_tags] do
         :all -> true
         {:only, opt} -> only?(opt, path, name)
         [{:only, opt}] -> only?(opt, path, name)
