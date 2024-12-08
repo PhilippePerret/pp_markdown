@@ -12,7 +12,7 @@
 defmodule PPMarkdown.Engine do
   @behaviour Phoenix.Template.Engine
 
-  @table_vars Application.compile_env(:pp_markdown, :table_vars, %{})
+  # @table_vars Application.compile_env(:pp_markdown, :table_vars, %{})
 
   # alias PPMarkdown.Highlighter, as: Lighter
 
@@ -24,20 +24,20 @@ defmodule PPMarkdown.Engine do
   def compile(path, name) do
 
     # Plus tard, on pourra définir des options
-    options = %{}
-
-    # options_lighter = []
-    options_final   = %{}
+    options = Application.get_env(:pp_markdown, :options, %{})
+    earmark_options = %{ earmark_options() | compact_output: options[:compact_output] || false}
+    # |> IO.inspect(label: "\nEarmark options")
 
     path
     |> File.read!()
     |> first_transformations(options)
-    |> Earmark.as_html!(earmark_options())
+    |> Earmark.as_html!(earmark_options)
     |> handle_smart_tags(path, name)
     |> mmd_transformations(options)
     # |> Makeup.highlight()
     |> load_external_code()
-    |> final_transformations(options_final)
+    |> final_transformations(options)
+    |> IO.inspect(label: "\nSortie de final_transformations")
     |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
     |> IO.inspect(label: "\nRetour de Engine.compile")
   end
@@ -115,7 +115,7 @@ defmodule PPMarkdown.Engine do
 
   defp transforme_paths(code) do
     code
-    |> String.replace(~r/path\((.*)\)/U, "<path>\\1</path>")
+    |> String.replace(~r/p(?:ath)?\((.*)\)/U, "<path>\\1</path>")
   end
 
   
@@ -129,11 +129,15 @@ defmodule PPMarkdown.Engine do
   #   (pour le moment, comme 'my_markdonw' n'est pas encore définitif, on passe
   #    par config :phoenix_markdown, :table_vars, %{...})
   defp transforme_vars(code) do
-    code = Regex.replace(~r/var\((.*)\)/U, code, fn _, varid -> get_in_table_vars(varid) end)
+    code = Regex.replace(~r/v(?:ar)?\((.*)\)/U, code, &get_in_table_vars(&1, &2))
     code
   end
-  defp get_in_table_vars(var_id) do
-    @table_vars[String.to_atom(var_id)]
+  defp get_in_table_vars(_tout, var_id) do
+    var_id = String.to_atom(var_id)
+    Map.get(table_vars(), var_id, "VARIABLE INTROUVABLE : #{var_id}")
+  end
+  defp table_vars() do
+    Application.get_env(:pp_markdown, :table_vars)
   end
 
   defp final_transformations(html, options) do

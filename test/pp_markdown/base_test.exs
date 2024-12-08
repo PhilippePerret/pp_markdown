@@ -3,20 +3,34 @@ defmodule PPMarkdown.EngineTest do
 
   use ExUnit.Case
 
-  alias PPMarkdown.Engine
+  alias TestHelper, as: T
+
+  @options %{compact_output: true}
 
   test "un simple paragraphe" do
+    actual = T.get_output_of("simple_paragraphe.mmd", @options)
+    assert ["<p>Un simple paragraphe.</p>"] == actual
+  end
 
-    Application.put_all_env(pp_markdown: [server_tags: false])
+  test "paragraphe avec variable (var(...) et v(...))" do
+    Application.put_env(:pp_markdown, :table_vars, %{nom: "Phil"})
+    actual = T.get_output_of("paragraphe_avec_variable.mmd", @options)
+    assert ["<p>Bonjour Phil !</p><p>Tu vas bien, Phil ?</p>"] == actual
+  end
 
-    {:__block__, _, liste} = 
-      "test/fixtures/textes/simple_paragraphe.mmd"
-      |> Engine.compile("simple_paragraphe.mmd")
-   
-      actual = Keyword.get(liste, :safe)
+  test "paragraphe avec path (path(...) et p(...))" do
+    actual = T.get_output_of("paragraphe_avec_path.mmd", @options)
+    assert actual == T.expected("""
+    <p>Le fichier <path>vers/mon/file</path></p>
+    <p>Le dossier <path>vers/mon/dossier</path></p>
+    """)
+  end
 
-    assert ["<p>\nUn simple paragraphe.</p>\n"] == actual
-    
+  describe "avec les retours chariot" do
+    test "retour le texte simple avec des retours" do
+      actual = T.get_output_of("simple_paragraphe.mmd", %{@options | compact_output: false})
+      assert ["<p>\nUn simple paragraphe.</p>\n"] == actual
+    end
   end
 
 end
