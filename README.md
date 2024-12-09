@@ -39,10 +39,19 @@ compact_output    Si true, pas de retours chariot ajoutés
                   Default : true
 
 gfm               traitement markdown "github flavour"
+                  Défaut : true
 
 smartypants       Si true, traite intelligemment les guillemets
-breaks            ?
+breaks            Si true, ajoute des retours chariot pour la 
+                  lisibilité du code
+                  Défaut : false
+
 server_tags       :all : traite les <% ... %> dans le texte (hors
                   bloc de code — dans les blocs de code, il faut
                   écrire <%%= %%>)
+                  Défaut : :all
+
+template_folder   Dossier dans lequel peuvent se trouver des fichiers
+                  template ou à insérer avec load(...) ou load_as_code
+                  
 ~~~

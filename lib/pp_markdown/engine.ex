@@ -37,17 +37,18 @@ defmodule PPMarkdown.Engine do
       name: name,
       server_tags: :all,
       earmark: options_earmark,
-      smartypants: false
+      smartypants: false,
+      folder: Path.dirname(path)
     })
 
     path
     |> File.read!()
-    |> load_external_codes()
-    |> load_external_textes()
+    |> load_external_codes(options)
+    |> load_external_textes(options)
     |> dispatch_sections()
     |> traite_blocs_code(options)
     |> traite_blocs_texte(options)
-    |> rejoin_sections(options)
+    |> re_join_sections(options)
     |> final_transformations(options)
     |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
   end
@@ -93,7 +94,7 @@ defmodule PPMarkdown.Engine do
     %{marked_text: letexte, original_text: code, blocks: blocks}
   end
 
-  defp rejoin_sections(file_map, options) do
+  defp re_join_sections(file_map, _options) do
     case file_map.blocks do
     [] -> file_map[:marked_text]
     _ -> 
@@ -164,15 +165,37 @@ defmodule PPMarkdown.Engine do
   # Permet de charger du code externe. On peut le placer tel quel avec la
   # mark-fonction `load(path/to/file)' ou le mettre dans un bloc de code
   # avec la mark-fonction `load_as_code(path/to/file.ext)'.
-  defp load_external_codes(code) do 
+  defp load_external_codes(code, _options) do 
     code
     |> reg_replace(@regex_load_as_code, &replace_as_code/2)
   end
 
-  defp load_external_textes(code) do
+  defp load_external_textes(code, options) do
     code
-    |> reg_replace(@regex_load, fn _, path -> File.read!(path) end)
+    |> reg_replace(@regex_load, fn _, pseudo_path -> 
+      case resolve_pseudo_path(pseudo_path, options) do
+        {:ok, path} -> File.read!(path)
+        {:error, error} -> error
+      end
+    end)
   end
+
+  # Function qui reçoit un pseudo path (qui peut se résumer au nom sans extension du fichier)
+  # et retourne son path, c'est-à-dire le path d'un fichier existant
+  #
+  # @return {:ok, full_path} en cas de succès et {:error, <l'erreur>} dans le cas
+  # contraire
+  defp resolve_pseudo_path(ppath, options) do
+    ppath = Path.extname(ppath) == "" && "#{ppath}.mmd" || ppath
+    cond do
+    File.exists?(ppath) -> {:ok, ppath}
+    File.exists?(fpath = Path.join(options[:folder], ppath)) -> {:ok, fpath}
+    File.exists?(fpath = Path.join("priv","static","textes", ppath)) -> {:ok, fpath}
+    options[:template_folder] && File.exists?(Path.join(options[:template_folder], ppath)) -> {:ok, Path.join(options[:template_folder], ppath)}
+    true -> {:erreur, "Impossible de résoudre le chemin de #{ppath}"}
+    end
+  end
+
 
   defp replace_as_code(_, path) do
     extension = path |> String.split(".") |> Enum.fetch!(-1)
