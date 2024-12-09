@@ -229,7 +229,6 @@ defmodule PPMarkdown.Engine do
   defp mmd_transformations(code, _options) do
     code
     |> transforme_nowrap()
-    |> IO.inspect(label: "\nTEXTE APRÈS NOwrap")
     |> transforme_paths()
     |> transforme_vars()
   end
