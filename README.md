@@ -20,6 +20,7 @@ Moteur de rendu PHOENIX.Elixir pour traitement étendu des fichiers markdown.
 * préservation d'entités HTML classiques (qui s'affichent normalement en brut avec phoenix-markdonw)
     * `<br />`
 * ajout de certains styles personnalisés pour les blocs de code (*document*, *markdown*)
+* la fonction `no_wrap(...)` permet de ne rien laisser passer à la ligne sur la page HTML, même les chevrons ou certains points qui, malgré l'espace insécable, passent quand même à la ligne. La méthode peut aussi s'écrire `nowrap` ou `nw`
 
 ### Options
 

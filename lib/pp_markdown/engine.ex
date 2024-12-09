@@ -19,6 +19,16 @@ defmodule PPMarkdown.Engine do
   # TODO Le définir en configuration ?
   @load_external_file_options %{source: true}
 
+  @reg_code ~r/(\`)(.*)\1/
+  @reg_elixir_tag ~r/<%/
+  @remp_elixir_tag "<%=\"<\"<>\"%\"%>"
+  @reg_nowrap ~r/(nowrap|no_wrap|nw)\((.*)\)/U
+  @reg_path ~r/p(?:ath)?\((.*)\)/U
+  @regex_load ~r/load\((.*)\)/U
+  @regex_load_as_code ~r/load_as_code\((.*)\)/U
+
+
+
   # Ici, le traitement va être différent : on va, dans un premier temps, séparer
   # le texte "normal" des blocs de code (qui doivent subir beaucoup moins de
   # traitement). cela permettra aussi d'utiliser Makeup.hightlight qui ne fonctionne
@@ -143,10 +153,6 @@ defmodule PPMarkdown.Engine do
   end
 
   # Concernant ce traitement, voir aussi la note [N001] en haut de page
-  @reg_code ~r/(\`)(.*)\1/
-  @reg_elixir_tag ~r/<%/
-  @remp_elixir_tag "<%=\"<\"<>\"%\"%>"
-
   defp protege_exilir_tags_in_code(code, options) do
     protege_elixir_tags_in(code, @reg_code, options)
   end
@@ -158,9 +164,6 @@ defmodule PPMarkdown.Engine do
       |> String.replace(@reg_elixir_tag, @remp_elixir_tag)
     end)
   end
-
-  @regex_load ~r/load\((.*)\)/U
-  @regex_load_as_code ~r/load_as_code\((.*)\)/U
 
   # Permet de charger du code externe. On peut le placer tel quel avec la
   # mark-fonction `load(path/to/file)' ou le mettre dans un bloc de code
@@ -224,15 +227,23 @@ defmodule PPMarkdown.Engine do
   end
 
   defp mmd_transformations(code, _options) do
-    code 
+    code
+    |> transforme_nowrap()
+    |> IO.inspect(label: "\nTEXTE APRÈS NOwrap")
     |> transforme_paths()
     |> transforme_vars()
   end
 
+  defp transforme_nowrap(code) do
+    code
+    |> String.replace(@reg_nowrap, "<span style=\"white-space:nowrap;\">\\2</span>")
+  end
+
   defp transforme_paths(code) do
     code
-    |> String.replace(~r/p(?:ath)?\((.*)\)/U, "<path>\\1</path>")
+    |> String.replace(@reg_path, "<path>\\1</path>")
   end
+
 
   
   # Méthode qui traite tous les `var(<variable id>)' dans les codes markdown
@@ -264,6 +275,7 @@ defmodule PPMarkdown.Engine do
     |> makeup_pour_highlighting(options)
   end
 
+  
   defp code_html_restants(html, _options) do
     html
     |> String.replace(~r/&lt;br( ?\/)?&gt;/, "<br />")
