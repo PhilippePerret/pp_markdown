@@ -14,14 +14,18 @@ defmodule PPMarkdown.ExternalTest do
       @options)
   end
 
-  @tag :skip
-  test "peut charger un bloc de code externe (priv de l'application)" do
+  test "peut charger un bloc de texte du dossier priv/static/textes" do
+    assert T.file_match?(
+      "load_from_static_textes.mmd",
+      "4794863B61B8C5448544740D117245495E64CEA42C0C9E8E7E143CA99D92C1CA",
+      @options
+    )
   end
   
   test "peut charger un bloc de texte externe du dossier défini en :template_folder" do
     assert T.file_match?(
       "load_from_template_folder.mmd", 
-      nil,
+      "A477DAA452595BA396121C3483DED4950CB1E898B9EF099B0B66E9B9D9A70E2E",
       %{@options | template_folder: "test/fixtures/textes/template_folder"})
   end
 
@@ -29,10 +33,10 @@ defmodule PPMarkdown.ExternalTest do
   test "cherche le texte dans tout le dossier priv quand il ne le trouve pas" do
   end
 
-  test "produit une erreur si le fichier est introuvable" do
-    assert T.file_not_match?(
+  test "produit une erreur dans la page si le fichier est introuvable" do
+    assert T.file_match?(
       "load_unfound_file.mmd", 
-      nil,
+      "73DC8EAB44629CD0B929C143738B94C280BCF57B884C96074E76F2BB836807AE",
       @options)
   end
 

@@ -189,10 +189,10 @@ defmodule PPMarkdown.Engine do
     ppath = Path.extname(ppath) == "" && "#{ppath}.mmd" || ppath
     cond do
     File.exists?(ppath) -> {:ok, ppath}
-    File.exists?(fpath = Path.join(options[:folder], ppath)) -> {:ok, fpath}
-    File.exists?(fpath = Path.join("priv","static","textes", ppath)) -> {:ok, fpath}
+    File.exists?(fpath = Path.join([options[:folder], ppath])) -> {:ok, fpath}
+    File.exists?(fpath = Path.join(["priv","static","textes", ppath])) -> {:ok, fpath}
     options[:template_folder] && File.exists?(Path.join(options[:template_folder], ppath)) -> {:ok, Path.join(options[:template_folder], ppath)}
-    true -> {:erreur, "Impossible de résoudre le chemin de #{ppath}"}
+    true -> {:error, "[Impossible de résoudre le chemin de '#{ppath}']"}
     end
   end
 
