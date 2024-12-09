@@ -62,6 +62,7 @@ defmodule TestHelper do
       Application.put_env(:pp_markdown, :options, options)
     end
     {:__block__, _, liste} = Engine.compile("test/fixtures/textes/#{filename}", filename)
+    IO.inspect(liste, label: "\n\nLISTE (#{filename})")
     Keyword.get(liste, :safe)
   end
 

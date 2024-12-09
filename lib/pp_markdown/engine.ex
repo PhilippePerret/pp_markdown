@@ -140,7 +140,10 @@ defmodule PPMarkdown.Engine do
     texte_corrected = 
       map_file.marked_text
       |> first_transformations(options)
+      |> class_et_id_css_transformations(options)
+      |> IO.inspect(label: "\nRETOUR DE class_et_id_css_transformations")
       |> Earmark.as_html!(options.earmark)
+      |> IO.inspect(label: "\nRETOUR DE Earmark.as_html!")
       |> handle_smart_tags(options)
       |> mmd_transformations(options)
     # On remet le texte dans la map du fichier
@@ -264,6 +267,47 @@ defmodule PPMarkdown.Engine do
   end
   defp table_vars() do
     Application.get_env(:pp_markdown, :table_vars)
+  end
+
+  # Méthode qui transforme :
+  #
+  #    style1.style2. <paragraphe>      => <p class="style1 style2">paragrpahe</p>
+  #    ident#<Paragraphe>               => <p id="ident">Paragraphe</p>
+  #    ident#style1.style2.<Paragraphe> => <p id="ident" class="style1.style2">
+  #
+  # L'expression régulière :
+  #   On peut trouver n'importe quel caractère vide (\h)
+  #   Ensuite, le texte doit commencer par des lettres minuscules, tirets, underscore ou point 
+  #     jusqu'à finir par un point ou un dièse (qui marque vraiment la fin)
+  #
+  @reg_css_class_and_id ~r/(\h*)([a-z0-9_\-]+[.#]){1,8}(?:\h*)(.*)/
+  @reg_mark_css ~r/([a-z0-9_\-]+)\./
+  @reg_mark_id ~r/([a-z0-9_\-]+)\#/
+  defp class_et_id_css_transformations(html, _options) do
+    # IO.inspect(html, label: "\nHTML au début")
+
+    # TODO ON DOIT CONTINUER DE TRAVAILLER LA FONCTION CAR POUR LE MOMENT ELLE FAIT 
+    # DISPARAITRE LES PARAGRAPHES SANS STYLES.
+    
+    html =
+    Regex.scan(@reg_css_class_and_id, html)
+    |> Enum.map(fn x -> 
+      # IO.inspect(x, label: "x")
+      [_tout, _amorce, idcss, paragraphe] = x
+      css =
+        Regex.scan(@reg_mark_css, idcss)
+        |> Enum.map(fn x -> [_tout, css] = x; css end)
+      ids =
+      Regex.scan(@reg_mark_id, idcss)
+      |> Enum.map(fn x -> [_tout, id] = x; id end)
+      mark_id = Enum.any?(ids) && " id=\"#{ids}\"" || ""
+      mark_css = Enum.any?(css) && " class=\"#{Enum.join(css, " ")}\"" || ""
+    
+      "<p#{mark_id}#{mark_css}>#{paragraphe}</p>"
+    end)
+    |> Enum.join("\n")
+    html
+    # |> IO.inspect(label: "\nHTML à la fin")
   end
 
   # Les toutes dernières transformations, juste avant de faire l'iodata qui va

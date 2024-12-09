@@ -21,6 +21,10 @@ Moteur de rendu PHOENIX.Elixir pour traitement étendu des fichiers markdown.
     * `<br />`
 * ajout de certains styles personnalisés pour les blocs de code (*document*, *markdown*)
 * la fonction `no_wrap(...)` permet de ne rien laisser passer à la ligne sur la page HTML, même les chevrons ou certains points qui, malgré l'espace insécable, passent quand même à la ligne. La méthode peut aussi s'écrire `nowrap` ou `nw`
+* Mise en forme
+    * Paragraphes avec classe css grâce à la tournure `classe_css.<Paragraphe>` (limitations : seulement des minuscules, des chiffres, des tirets et des traits plats). Application de plusieurs styles avec `style1.style2.<paragraphe>` (même limitations)
+    * Paragraphes avec identifiant CSS grâce à la tournure `identifiant#<Paragraphe>.` (même limitations que pour les classes CSS). Application d'identifiant (forcément unique) et style avec `<id>#style.<paragraphe>.`.
+
 
 ### Options
 
