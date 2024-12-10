@@ -16,7 +16,7 @@ defmodule PPMarkdown.EngineBaseTest do
   test "paragraphe avec variable (var(...) et v(...))" do
     Application.put_env(:pp_markdown, :table_vars, %{nom: "Phil"})
     assert T.file_match?("paragraphe_avec_variable.mmd",
-      "59807087F204EAB95BBF4754828E9D307F7775BC0AE56AD945B66650F41F58B3",
+      "EEFA38841BA8F56B974CE749D2F7436397A665FC2610146D3201FFE3BF3F0EE2",
       @options)
 
     # Doit produire :
@@ -25,7 +25,7 @@ defmodule PPMarkdown.EngineBaseTest do
 
   test "paragraphe avec path (path(...) et p(...))" do
     assert T.file_match?("paragraphe_avec_path.mmd",
-      "16CF672140FB70AA804E4FE064C2B91D47B20FDF9DCA09220B1B47DADC0612AE",
+      "A78DA4FB0E041773AB0454691B27A352D7A2239B74C342ACA5A137E4B937815E",
       @options)
 
     # Doit produire (sans retours chariot) :

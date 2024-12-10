@@ -23,7 +23,8 @@ defmodule PPMarkdown.Engine do
   @reg_elixir_tag ~r/<%/
   @remp_elixir_tag "<%=\"<\"<>\"%\"%>"
   @reg_nowrap ~r/(nowrap|no_wrap|nw)\((.*)\)/U
-  @reg_path ~r/p(?:ath)?\((.*)\)/U
+  @reg_path ~r/\bp(?:ath)?\((.*)\)/U
+  @reg_variable ~r/\bv(?:ar)?\((.*)\)/U
   @regex_load ~r/load\((.*)\)/U
   @regex_load_as_code ~r/load_as_code\((.*)\)/U
 
@@ -258,7 +259,7 @@ defmodule PPMarkdown.Engine do
   #   (pour le moment, comme 'my_markdonw' n'est pas encore définitif, on passe
   #    par config :phoenix_markdown, :table_vars, %{...})
   defp transforme_vars(code) do
-    code = Regex.replace(~r/v(?:ar)?\((.*)\)/U, code, &get_in_table_vars(&1, &2))
+    code = Regex.replace(@reg_variable, code, &get_in_table_vars(&1, &2))
     code
   end
   defp get_in_table_vars(_tout, var_id) do

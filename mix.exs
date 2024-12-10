@@ -1,7 +1,7 @@
 defmodule PPMarkdown.Mixfile do
   use Mix.Project
 
-  @version "0.1.3"
+  @version "0.1.4"
   @github "https://github.com/PhilippePerret/pp_markdown"
 
   def project do
