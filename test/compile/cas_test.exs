@@ -3,18 +3,14 @@ defmodule PPMarkdown.EngineTest do
 
   use ExUnit.Case
 
-  alias PPMarkdown.Engine
+  # alias PPMarkdown.Engine
+  alias TestHelper, as: T
+
+
+  @options %{compact_output: true}
 
   test "un simple paragraphe" do
-
-    Application.put_all_env(pp_markdown: [server_tags: false])
-
-    actual = 
-      "test/fixtures/textes/simple_paragraphe.mmd"
-      |> Engine.compile("simple_paragraphe.mmd")
-
-    assert "simple" == actual
-    
+    assert T.file_match?("simple_paragraphe.mmd", "D8607393EE65B236F2D7BA28C24BAE1257B480FE25787E72AF4FBFFBBAB4375A", @options)    
   end
 
 end

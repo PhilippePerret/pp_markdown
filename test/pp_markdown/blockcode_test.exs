@@ -8,9 +8,9 @@ defmodule PPMarkdown.BlockcodesTest do
   @options %{compact_output: true}
 
   test "blocs de code" do
-    actual = T.get_output_of("simple_bloc_de_code.mmd", @options)
-    assert ["<pre><code>Un simple code</code></pre>"] == actual
-    
+    assert T.file_match?("simple_bloc_de_code.mmd", 
+    "87540D2E07F8EC4DDB355B0D51173337CB865F8EDC0340603D2484489DF628D9", 
+    @options)    
   end
 
   # test "avec du texte à évaluer (entre <%% ... %%>)" do

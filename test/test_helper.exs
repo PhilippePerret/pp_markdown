@@ -62,14 +62,21 @@ defmodule TestHelper do
       Application.put_env(:pp_markdown, :options, options)
     end
     {:__block__, _, liste} = Engine.compile("test/fixtures/textes/#{filename}", filename)
-    IO.inspect(liste, label: "\n\nLISTE (#{filename})")
+    # IO.inspect(liste, label: "\n\nLISTE (#{filename})")
     Keyword.get(liste, :safe)
+
+    # # Fourni par ChatGPT
+    # SafeExtractor.extract_safe(liste_safe)
+    # |> IO.inspect(label: "\nRETOURNÉ PAR SafeExtractor.extract_safe")
+
   end
 
 
   def get_output_of(filename) do
     get_output_of(filename, nil)
   end
+
+
 
   @doc """
   Retourne [<texte>], le texte retourné par la méthode PPMarkdown.Engine.compile/2
@@ -100,3 +107,42 @@ defmodule TestHelper do
 
 end
 
+
+defmodule SafeExtractor do
+  # Fonction principale pour transformer :safe en une liste de chaînes
+  def extract_safe(map) do
+    case Map.get(map, :safe) do
+      # Cas 1 : Liste simple de chaînes
+      safe when is_list(safe) ->
+        if Enum.all?(safe, &is_binary/1), do: safe, else: flatten_and_evaluate(safe)
+
+      # Cas 2 : Liste mixte avec des expressions dynamiques
+      {:safe, list} ->
+        flatten_and_evaluate(list)
+
+      # Cas par défaut
+      _ ->
+        []
+    end
+  end
+
+  # Fonction pour aplatir et évaluer les éléments
+  defp flatten_and_evaluate(list) do
+    list
+    |> Enum.map(&process_safe_element/1)
+    |> List.flatten()
+  end
+
+  # Traiter les chaînes simples
+  defp process_safe_element(element) when is_binary(element), do: [element]
+
+  # Évaluer dynamiquement les blocs {:argX, [], Phoenix.HTML.Engine}
+  defp process_safe_element({arg, _, Phoenix.HTML.Engine}) do
+    # Évaluation du code Elixir pour ce bloc
+    {value, _binding} = Code.eval_quoted(arg)
+    [to_string(value)]
+  end
+
+  # Gérer les cas inconnus
+  defp process_safe_element(_other), do: []
+end

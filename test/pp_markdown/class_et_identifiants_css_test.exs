@@ -6,10 +6,10 @@ defmodule PPMarkdown.ClassIdentifiantsCssTest do
 
   @options %{compact_output: true}
 
-  test "la tournure '<class>.<paragraphe>' permet de créer un paragraphe avec class" do
+  test "la tournure 'class.Paragraphe' ou 'id#Paragraphe permet de créer un paragraphe avec class et id" do
     assert T.file_match?(
       "classe_css_de_paragraphe.mmd",
-      nil,
+      "73DE04981159F643858A5F28575684C5BF1FDE28ADB8890C88C48C6C3AE0253B",
       @options
     )
   end
