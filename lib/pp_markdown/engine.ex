@@ -19,7 +19,7 @@ defmodule PPMarkdown.Engine do
   # TODO Le définir en configuration ?
   @load_external_file_options %{source: true}
 
-  @reg_code ~r/(\`)(.*)\1/
+  @reg_code ~r/(\`)(.*)\1/U
   @reg_elixir_tag ~r/<%/
   @remp_elixir_tag "<%=\"<\"<>\"%\"%>"
   @reg_nowrap ~r/(nowrap|no_wrap|nw)\((.*)\)/U
@@ -34,9 +34,20 @@ defmodule PPMarkdown.Engine do
   # le texte "normal" des blocs de code (qui doivent subir beaucoup moins de
   # traitement). cela permettra aussi d'utiliser Makeup.hightlight qui ne fonctionne
   # en fait que sur des blocs de code, pas sur toute la page
+  #
+  # Mais j'ajoute aussi un autre traitement : ne pas tout avoir dans la même fonction pour
+  # pouvoir débugger plus facilement. Car ici, la fonction doit renvoyer au moteur de vues
+  # un format qui est si j'ai bien compris, AST
+  #
+  # Donc il faut une méthode séparée qui puisse recevoir le code
   def compile(path, name \\ nil) do
     name = name || Path.basename(path)
-    options = Application.get_env(:pp_markdown, :options, %{})
+    default_options = %{
+      protect_spec_signs: true,
+      server_tags: :all,
+      smartypants: false
+    }
+    options = Map.merge(default_options, Application.get_env(:pp_markdown, :options, %{}))
     options_earmark = %Earmark.Options{
       gfm: options[:gfm],
       smartypants: options[:smartypants] || false,
@@ -46,22 +57,26 @@ defmodule PPMarkdown.Engine do
     options = Map.merge(options, %{
       path: path, 
       name: name,
-      server_tags: :all,
       earmark: options_earmark,
-      smartypants: false,
       folder: Path.dirname(path)
     })
 
     path
     |> File.read!()
+    |> compile_string(options) # ma méthode
+    |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
+  end
+
+  def compile_string(texte, options) do
+    texte
     |> load_external_codes(options)
     |> load_external_textes(options)
     |> dispatch_sections()
+    # |> IO.inspect(label: "Après dispatch des sections")
     |> traite_blocs_code(options)
     |> traite_blocs_texte(options)
     |> re_join_sections(options)
     |> final_transformations(options)
-    |> EEx.compile_string(engine: Phoenix.HTML.Engine, file: path, line: 1)
   end
 
   @doc """
@@ -100,8 +115,18 @@ defmodule PPMarkdown.Engine do
       lang  = Enum.fetch!(matches, 2)
       lang  = lang == "" && nil || lang 
       block = Enum.fetch!(matches, -1)
-      {blocks ++ [{block, lang, index}], String.replace(acc, full_block, "\n\n BLOCKCODE#{index} \n\n")}
+      {blocks ++ [{block, lang, index, true}], String.replace(acc, full_block, "\n\n BLOCKCODE#{index} \n\n")}
     end)
+
+    {blocks, letexte} = 
+    Regex.scan(@reg_code, code)
+    |> Enum.with_index(Enum.count(blocks))
+    |> Enum.reduce({blocks, letexte}, fn {matches, index}, {blocks, acc} ->
+      full_block = Enum.fetch!(matches, 0)
+      block = Enum.fetch!(matches, -1)
+      {blocks ++ [{block, "", index, false}], String.replace(acc, full_block, " BLOCKCODE#{index} ")}
+    end)
+
     %{marked_text: letexte, original_text: code, blocks: blocks}
   end
 
@@ -121,8 +146,12 @@ defmodule PPMarkdown.Engine do
     blocks_corrected =
       map_file.blocks
       # |> Enum.map(&traite_block_code(&1, options))
-      |> Enum.map(fn {code, langage, index} -> 
-        new_code = traite_block_code(code, langage, options)
+      |> Enum.map(fn {code, langage, index, is_block} -> 
+        new_code =
+          case is_block do
+          true  -> traite_block_code(code, langage, options)
+          false -> "<code>#{code}</code>"
+          end
         {new_code, index}
       end)
     
@@ -138,15 +167,23 @@ defmodule PPMarkdown.Engine do
 
   # Fonction de traitement principal du texte
   defp traite_blocs_texte(map_file, options) do
+    # IO.inspect(options, label: "\nOPTIONS")
     texte_corrected = 
       map_file.marked_text
+      |> protect_special_signs(options)
       |> first_transformations(options)
       |> class_et_id_css_transformations(options)
+      |> Enum.join("\n")
       # |> IO.inspect(label: "\nRETOUR DE class_et_id_css_transformations")
       |> Earmark.as_html!(options.earmark)
-      # |> IO.inspect(label: "\nRETOUR DE Earmark.as_html!")
+      |> IO.inspect(label: "\nAvant handle_smart_tags")
       |> handle_smart_tags(options)
+      |> IO.inspect(label: "\nAprès handle_smart_tags")
+      # |> IO.inspect(label: "\nRETOUR DE Earmark.as_html!")
+      |> extra_marks_simples(options) # à moi (^: exposant, _: subscript)
+      # |> IO.inspect(label: "\nRETOUR DE handle_smart_tags")
       |> mmd_transformations(options)
+      |> unprotect_special_signs(options)
     # On remet le texte dans la map du fichier
     Map.put(map_file, :marked_text, texte_corrected)
   end
@@ -154,6 +191,54 @@ defmodule PPMarkdown.Engine do
   defp first_transformations(code, options) do
     code
     |> protege_exilir_tags_in_code(options)
+  end
+
+  # Macro à utiliser comme 3e argument de Regex.replace pour effectuer
+  # un remplacement à partir d'une table. Les clés sont remplacées par
+  # les valeurs.
+  #
+  #   Regex.replace(Regex(), String(), rep_from_table(Map()))
+  #
+  defmacro rep_from_table(table) do
+    quote do 
+      fn _, x -> Map.get(unquote(table), x) end
+    end
+  end
+
+  # Pour "protéger" certains signes, c'est-à-dire empêcher qu'on les
+  # transforme. Typiquement cette méthode a été créé pour ne pas qu'on
+  # puisse transformer les &lt; et &gt; afin que les <...>, qui seront
+  # transformé par &lt; et &gt; par Earmark, puissent être remis
+  # ensuite.
+  #
+  # Il faut aussi protéger les <...> qui correspondent à des balises HTML
+  # dont la liste contient (avec leur fermeture) : <i>, <b>, <a, <span, <div
+  # <em, <quote, <code, <pre, 
+  @tbl_from_specs_signs %{
+    "&lt;" => "HENTITYINF", 
+    "&gt;" => "HENTITYSUP"
+  }
+  @reg_from_specs_signs ~r/(#{Enum.join(Map.keys(@tbl_from_specs_signs), "|")})/
+  @tbl_to_specs_signs Enum.into(@tbl_from_specs_signs, %{}, &{elem(&1, 1), elem(&1, 0)})
+  @reg_to_specs_signs ~r/(#{Enum.join(Map.keys(@tbl_to_specs_signs), "|")})/
+
+  defp protect_special_signs(html, %{protect_spec_signs: true} = _options) do
+    html
+    |> string_replace_with_table(@tbl_from_specs_signs, @reg_from_specs_signs)
+    # |> IO.inspect(label: "\nPROTECTED SIGNS")
+  end
+  defp protect_special_signs(html, _options), do: html
+
+  defp unprotect_special_signs(html, %{protect_spec_signs: true} = _options) do
+    html
+    |> string_replace_with_table(@tbl_to_specs_signs, @reg_to_specs_signs)
+    # |> IO.inspect(label: "\nUNPROTECTED SIGNS")
+  end
+  defp unprotect_special_signs(html, _options), do: html
+
+  # Remplace dans +string+ les clés de +table+ par les valeurs de ces clés
+  defp string_replace_with_table(string, table, search) do
+    Regex.replace(search, string, rep_from_table(table))
   end
 
   # Concernant ce traitement, voir aussi la note [N001] en haut de page
@@ -185,6 +270,16 @@ defmodule PPMarkdown.Engine do
         {:error, error} -> error
       end
     end)
+  end
+
+  @reg_exposant ~r/\^(.+)(?:\^|\b)/U
+  @rep_exposant "<sup>\\1</sup>"
+  @reg_subscript ~r/_(.+)(?:_|\b)/U 
+  @rep_subscript "<sub>\\1</sub>"
+  defp extra_marks_simples(html, options) do
+    html
+    |> String.replace(@reg_exposant, @rep_exposant)
+    |> String.replace(@reg_subscript, @rep_subscript)  
   end
 
   # Function qui reçoit un pseudo path (qui peut se résumer au nom sans extension du fichier)
@@ -379,7 +474,7 @@ defmodule PPMarkdown.Engine do
       String.match?(path, regex)
     else
       raise ArgumentError,
-            "Invalid parameter to PhoenixMarkdown only: configuration #{inspect(regex)}"
+            "Invalid parameter to PPMarkdown only: configuration #{inspect(regex)}"
     end
   end
 
@@ -403,7 +498,7 @@ defmodule PPMarkdown.Engine do
       !String.match?(path, regex)
     else
       raise ArgumentError,
-            "Invalid parameter to PhoenixMarkdown except: configuration #{inspect(regex)}"
+            "Invalid parameter to PPMarkdown except: configuration #{inspect(regex)}"
     end
   end
   

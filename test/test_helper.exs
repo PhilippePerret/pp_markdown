@@ -1,8 +1,47 @@
 ExUnit.start()
 
+defmodule PPIO do
+  def rouge(texte), do: IO.puts(IO.ANSI.red() <> texte <> IO.ANSI.reset())
+end
+
 defmodule TestHelper do
 
+  @options %{
+    compact_output: true, 
+    protect_spec_signs: true, 
+    server_tags: :all,
+    earmark: %Earmark.Options{
+      gfm: false,
+      smartypants: false,
+      breaks: true,
+      compact_output: true
+    }}
+
+
+  use ExUnit.Case
+
   alias PPMarkdown.Engine
+
+
+  def compare(provided, expected, options \\ %{}) do
+    options = Map.merge(@options, options)
+    actual = Engine.compile_string(provided, options)
+    actual = EEx.eval_string(actual) |> String.trim()
+    expected = String.trim(expected)
+    assert expected == actual,
+      """
+      Le résultat attendu n'est pas le bon.
+      *Code fourni*
+      #{provided}
+      -----------
+      *Résultat attendu*
+      #{expected}
+      -------
+      *Résultat obtenu*
+      #{actual}
+      ------
+      """
+  end
 
   @doc """
   Test principal pour voir si le contenu rendu par un fichier est le bon.

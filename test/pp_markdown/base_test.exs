@@ -5,7 +5,7 @@ defmodule PPMarkdown.EngineBaseTest do
 
   alias TestHelper, as: T
 
-  @options %{compact_output: true}
+  @options %{compact_output: true, protect_spec_signs: true}
 
   test "un simple paragraphe" do
     assert T.file_match?("simple_paragraphe.mmd",
@@ -38,6 +38,19 @@ defmodule PPMarkdown.EngineBaseTest do
       actual = T.get_output_of("simple_paragraphe.mmd", %{@options | compact_output: false})
       assert ["<p>Un simple paragraphe.</p>"] == actual
     end
+  end
+
+
+  test "on peut protéger certains signes" do 
+    actual = T.get_output_of("protected_signs.mmd", %{@options | protect_spec_signs: true})
+    assert actual == [T.expected("""
+    <p>Le signe &lt; et le signe &gt; avec un <i>mot en italique</i>.</p>
+    <p>Le signe <code class=\"makeup inline\">&lt;</code> et le signe <code class=\"makeup inline\">&gt;</code>.</p>
+    """)]
+  end
+  test "ou ne pas les protéger" do
+    actual = T.get_output_of("protected_signs.mmd", %{@options | protect_spec_signs: false})
+    assert ["<p>Un <paragraphe></p>"] == actual
   end
 
 end

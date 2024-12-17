@@ -16,6 +16,8 @@ Moteur de rendu PHOENIX.Elixir pour traitement étendu des fichiers markdown.
     config :pp_markdown, :table_vars, %{<var>: <val>, <var>: <val> ...}
     ~~~
 
+* mises en forme traditionnelles dans les documents markdown et quelques ajouts (une astérisque pour italique, deux astérisques pour graisse, double trait plat pour souligné, double tiret pour barré)
+* extras mises en forme (`1^er` vers 1<sup>er</sup>, `2^e^M` vers 2<sup>e</sup>M, `H_2` vers H<sub>2</sub>, `H_2_O` vers H<sub>2</sub>O)
 * mise en forme des chemins d'accès (et noms de fichiers/dossiers) à l'aide de `path(to/my/file)` ou `p(path/to/file)`
 * préservation d'entités HTML classiques (qui s'affichent normalement en brut avec phoenix-markdonw)
     * `<br />`
@@ -24,7 +26,7 @@ Moteur de rendu PHOENIX.Elixir pour traitement étendu des fichiers markdown.
 * Mise en forme
     * Paragraphes avec classe css grâce à la tournure `classe_css.<Paragraphe>` (limitations : seulement des minuscules, des chiffres, des tirets et des traits plats). Application de plusieurs styles avec `style1.style2.<paragraphe>` (même limitations)
     * Paragraphes avec identifiant CSS grâce à la tournure `identifiant#<Paragraphe>.` (même limitations que pour les classes CSS). Application d'identifiant (forcément unique) et style avec `<id>#style.<paragraphe>.`.
-
+* tous les textes entre accent aigus (backstick en anglais) sont laissés tels quels. Aucune extrapolation n'est fait, le texte doit être écrit comme il doit apparaitre. Par exemple, si l'on veut écrit `&lt;`, on doit écrire vraiment « &amp;lt; », ça ne sera pas transformé en « &lt; ». À l'avenir on pourra imaginer un système pour des interpolations.
 
 ### Options
 

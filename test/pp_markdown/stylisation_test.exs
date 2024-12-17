@@ -14,4 +14,11 @@ defmodule PPMarkdown.ClassIdentifiantsCssTest do
     )
   end
 
+  test "la astérisques, traits plats et autres servent à styler simplement" do
+    assert T.file_match?(
+      "texte_styles.mmd",
+      nil,
+      @options
+    )
+  end
 end
